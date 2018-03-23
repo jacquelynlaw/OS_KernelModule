@@ -53,14 +53,18 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 	int bytesToReceive = len;
 	int receiveIndex = 0;
 	printk(KERN_INFO "Bytes to Receive: %d\n", bytesToReceive);
+	
+	// What if len exceeds buffer or len exceeds whats left in buffer atm?	
+	// bytesToReceive should not count all the way to 0
 
 	// While there is still room in the buffer and bytes to recieve
 	while (bytesToReceive > 0 && bufferOccupation < BUFFER_SIZE)
 	{
 		// Put byte in main buffer at current write index
-		sprintf(mainBuffer + bufferWriteIndex, "%s", buffer +  receiveIndex++, 1);
+		sprintf(mainBuffer + bufferWriteIndex, "%s", buffer + receiveIndex++, 1);
 		bufferOccupation++;
 		bufferWriteIndex++;
+		bytesToReceive--;
 
 		if (bufferWriteIndex > BUFFER_SIZE - 1)
 		{
@@ -90,8 +94,10 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 		errorCount += copy_to_user(buffer + sendCount, mainBuffer + bufferReadIndex, 1);
 		bufferOccupation--;
 		bufferReadIndex++;
+		sendCount++;
 		if (bufferReadIndex > BUFFER_SIZE - 1)
-		{
+		{	
+			printk(KERN_INFO "*** L O O P I N G ***\n");
 			bufferReadIndex = 0;
 		}
 	}
