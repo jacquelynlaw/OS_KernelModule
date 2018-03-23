@@ -51,14 +51,14 @@ static struct file_operations fops = {
  */
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
 	int bytesToReceive = len;
-	//printk(KERN_INFO "Bytes to Receive: %d\n", bytesToReceive);
-	int receiveIndex = 0;	
+	int receiveIndex = 0;
+	printk(KERN_INFO "Bytes to Receive: %d\n", bytesToReceive);
 
 	// While there is still room in the buffer and bytes to recieve
 	while (bytesToReceive > 0 && bufferOccupation < BUFFER_SIZE)
 	{
 		// Put byte in main buffer at current write index
-		sprintf(mainBuffer + bufferWriteIndex, "%c", buffer +  receiveIndex++, 1);
+		sprintf(mainBuffer + bufferWriteIndex, "%s", buffer +  receiveIndex++, 1);
 		bufferOccupation++;
 		bufferWriteIndex++;
 
@@ -67,6 +67,8 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 			bufferWriteIndex = 0;
 		}
 	}
+
+	return len - bytesToReceive;
 }
 
 /** @brief This function is called whenever the device is being read from user space
@@ -79,6 +81,8 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 	int errorCount = 0;
 	int sendCount = 0;
 	
+	printk(KERN_INFO "Bytes to Read: %d\n", len);
+
 	// While there are things to send and the requested character count has not been met
 	while (sendCount < len && bufferOccupation > 0)
 	{
