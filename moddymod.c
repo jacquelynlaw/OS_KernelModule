@@ -24,6 +24,9 @@ MODULE_VERSION("0.1");
 
 static int majorNumber;
 static char mainBuffer[BUFFER_SIZE]= {0};
+static int bufferOccupation = 0;
+static int bufferReadIndex = 0;
+static int bufferWriteIndex = 0;
 static struct class *modClass = NULL;
 static struct device *modDevice = NULL;
 
@@ -39,6 +42,88 @@ static struct file_operations fops = {
 	.release = dev_release,
 	//.owner = THIS_MODULE
 };
+
+/** @brief This function is called whenever the device is being written to from user space
+ *  @param filep A pointer to a file object
+ *  @param buffer The buffer to that contains the string to write to the device
+ *  @param len The length of the array of data that is being passed in the const char buffer
+ *  @param offset The offset if required
+ */
+static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
+	int bytesToReceive = len;
+	//printk(KERN_INFO "Bytes to Receive: %d\n", bytesToReceive);
+	int receiveIndex = 0;	
+
+	// While there is still room in the buffer and bytes to recieve
+	while (bytesToReceive > 0 && bufferOccupation < BUFFER_SIZE)
+	{
+		// Put byte in main buffer at current write index
+		sprintf(mainBuffer + bufferWriteIndex, "%c", buffer +  receiveIndex++, 1);
+		bufferOccupation++;
+		bufferWriteIndex++;
+
+		if (bufferWriteIndex > BUFFER_SIZE - 1)
+		{
+			bufferWriteIndex = 0;
+		}
+	}
+}
+
+/** @brief This function is called whenever the device is being read from user space
+ *  @param filep A pointer to a file object (defined in linux/fs.h)
+ *  @param buffer The pointer to the buffer to which this function writes the data
+ *  @param len The length of the b
+ *  @param offset The offset if required
+ */
+static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset) {
+	int errorCount = 0;
+	int sendCount = 0;
+	
+	// While there are things to send and the requested character count has not been met
+	while (sendCount < len && bufferOccupation > 0)
+	{
+		// Keep track of errors and send things to the user
+		errorCount += copy_to_user(buffer + sendCount, mainBuffer + bufferReadIndex, 1);
+		bufferOccupation--;
+		bufferReadIndex++;
+		if (bufferReadIndex > BUFFER_SIZE - 1)
+		{
+			bufferReadIndex = 0;
+		}
+	}
+	
+	// If no errors then return the number of characters sent
+	// otherwise, return a bad address message
+	if (errorCount == 0)
+	{
+		printk(KERN_INFO "moddymod: Sent %d characters to the user\n", sendCount);
+		return sendCount;
+	}
+	else
+	{
+		printk(KERN_INFO "moddymod: Failed to send %d characters to the user\n", sendCount);
+		return -EFAULT;
+	}
+}
+
+/** @brief The device open function that is called each time the device is opened
+ *  @param inodep A pointer to an inode object (defined in linux/fs.h)
+ *  @param filep A pointer to a file object (defined in linux/fs.h)
+ */
+static int dev_open(struct inode *inodep, struct file *filep) {
+   printk(KERN_INFO "moddymod: Device has been opened\n");
+   return 0;
+}
+
+/** @brief The device release function that is called whenever the device is closed/released by
+ *  the userspace program
+ *  @param inodep A pointer to an inode object (defined in linux/fs.h)
+ *  @param filep A pointer to a file object (defined in linux/fs.h)
+ */
+static int dev_release(struct inode *inodep, struct file *filep) {
+   printk(KERN_INFO "moddymod: Device successfully closed\n");
+   return 0;
+}
 
 int init_module(void) {
 	printk(KERN_INFO "moddymod: installing moddymod.\n");
@@ -90,25 +175,30 @@ void cleanup_module(void) {
    	printk(KERN_INFO "moddymod: goodbye from the LKM!\n");
 }
 
-// IMPLEMENTATION TBA
-static int dev_open(struct inode *inodep, struct file *filep){
-   //numberOpens++;
-   //printk(KERN_INFO "moddymod: Device has been opened %d time(s)\n", numberOpens);
-   return 0;
-}
+/*
+====================Implementation Checklist====================
+Your driver must:
+ [ ] Store bytes written to it up to a constant buffer size (at least 1KB)
+ [ ] Allow them to be read back out in FIFO fashion
+ [ ] Remove them from the buffer as they are read back out
 
-// IMPLEMENTATION TBA
-static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
-   return 0;
-}
+ [ ] If not enough buffer is available to store a write request, the driver must store only up to the amount available
+ [ ] If not enough data is available to service a read request, the driver must respond with only the amount available (including 0 		bytes)
 
-// IMPLEMENTATION TBA
-static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
-   return 0;
-}
+ [x] Successfully initialize and de-initialize itself, including registering itself and obtaining a new major device number.
+ [ ] Report using printk each time its character device is opened, closed, read or written.
 
-// IMPLEMENTATION TBA
-static int dev_release(struct inode *inodep, struct file *filep){
-   printk(KERN_INFO "moddymod: Device successfully closed\n");
-   return 0;
-}
+ [x] Initialize the kernel module.
+        …including registering the device.
+ [?]    You do not need to create the device file, but you do need to log the device number you are assigned so that mknod can be 	called to do so after your kernel module is installed.
+
+ [x] De-initialize the kernel module.
+        …including de-registering the device.
+
+ [ ] Open the device.
+ [ ] Close the device.
+ [ ] Read from the device.
+ [ ] Write to the device.
+*/
+
+// he noddynodded off into sleep while his big brother named character buffer was boolean him and then their dad, mainBuffer, sent for their butler Count who's Occopuation was to buffer.
