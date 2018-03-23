@@ -40,7 +40,6 @@ static struct file_operations fops = {
 	.read = dev_read,
 	.write = dev_write,
 	.release = dev_release,
-	//.owner = THIS_MODULE
 };
 
 /** @brief This function is called whenever the device is being written to from user space
@@ -52,16 +51,12 @@ static struct file_operations fops = {
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
 	int bytesToReceive = len;
 	int receiveIndex = 0;
-	printk(KERN_INFO "Bytes to Receive: %d\n", bytesToReceive);
-	
-	// What if len exceeds buffer or len exceeds whats left in buffer atm?	
-	// bytesToReceive should not count all the way to 0
 
 	// While there is still room in the buffer and bytes to recieve
 	while (bytesToReceive > 0 && bufferOccupation < BUFFER_SIZE)
 	{
 		// Put byte in main buffer at current write index
-		sprintf(mainBuffer + bufferWriteIndex, "%s", buffer + receiveIndex++, 1);
+		sprintf(mainBuffer + bufferWriteIndex, "%c", buffer[receiveIndex++]);
 		bufferOccupation++;
 		bufferWriteIndex++;
 		bytesToReceive--;
@@ -71,6 +66,8 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 			bufferWriteIndex = 0;
 		}
 	}
+
+	printk(KERN_INFO "moddymod: Sent %d characters to the user\n", len - bytesToReceive);
 
 	return len - bytesToReceive;
 }
@@ -85,7 +82,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 	int errorCount = 0;
 	int sendCount = 0;
 	
-	printk(KERN_INFO "Bytes to Read: %d\n", len);
+	
 
 	// While there are things to send and the requested character count has not been met
 	while (sendCount < len && bufferOccupation > 0)
@@ -97,7 +94,6 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 		sendCount++;
 		if (bufferReadIndex > BUFFER_SIZE - 1)
 		{	
-			printk(KERN_INFO "*** L O O P I N G ***\n");
 			bufferReadIndex = 0;
 		}
 	}
@@ -136,7 +132,7 @@ static int dev_release(struct inode *inodep, struct file *filep) {
 }
 
 int init_module(void) {
-	printk(KERN_INFO "moddymod: installing moddymod.\n");
+	printk(KERN_INFO "moddymod: Installing moddymod.\n");
 	
 	// Try to dynamically allocate a major number for the device
 	majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
@@ -144,7 +140,7 @@ int init_module(void) {
 		printk(KERN_ALERT "moddymod failed to register a major number \n");
 		return majorNumber;
 	}
-	printk(KERN_INFO "moddymod: registered correctly with major number %d\n", majorNumber);
+	printk(KERN_INFO "moddymod: Registered correctly with major number %d\n", majorNumber);
 
 	// Register the device class
    	modClass = class_create(THIS_MODULE, CLASS_NAME);
@@ -155,7 +151,7 @@ int init_module(void) {
       		printk(KERN_ALERT "Failed to register device class\n");
       		return PTR_ERR(modClass);          // Return pointer error
    	}
-  	printk(KERN_INFO "moddymod: device class registered correctly\n");
+  	printk(KERN_INFO "moddymod: Device class registered correctly\n");
  
    	// Register the device driver
    	modDevice = device_create(modClass, NULL, MKDEV(majorNumber, 0), NULL, DEVICE_NAME);
@@ -170,45 +166,16 @@ int init_module(void) {
 		return PTR_ERR(modDevice);
 	}
 
-   	printk(KERN_INFO "moddymod: device class created correctly\n");
+   	printk(KERN_INFO "moddymod: Device class created correctly\n");
 
 	return 0;
 }
 
 void cleanup_module(void) {
-	printk(KERN_INFO "moddymod: removing moddymod.\n");
+	printk(KERN_INFO "moddymod: Removing moddymod\n");
 
 	device_destroy(modClass, MKDEV(majorNumber, 0));     // remove the device
 	class_unregister(modClass);                          // unregister the device class
 	class_destroy(modClass);                             // remove the device class
    	unregister_chrdev(majorNumber, DEVICE_NAME);         // unregister the major number
-   	printk(KERN_INFO "moddymod: goodbye from the LKM!\n");
 }
-
-/*
-====================Implementation Checklist====================
-Your driver must:
- [ ] Store bytes written to it up to a constant buffer size (at least 1KB)
- [ ] Allow them to be read back out in FIFO fashion
- [ ] Remove them from the buffer as they are read back out
-
- [ ] If not enough buffer is available to store a write request, the driver must store only up to the amount available
- [ ] If not enough data is available to service a read request, the driver must respond with only the amount available (including 0 		bytes)
-
- [x] Successfully initialize and de-initialize itself, including registering itself and obtaining a new major device number.
- [ ] Report using printk each time its character device is opened, closed, read or written.
-
- [x] Initialize the kernel module.
-        …including registering the device.
- [?]    You do not need to create the device file, but you do need to log the device number you are assigned so that mknod can be 	called to do so after your kernel module is installed.
-
- [x] De-initialize the kernel module.
-        …including de-registering the device.
-
- [ ] Open the device.
- [ ] Close the device.
- [ ] Read from the device.
- [ ] Write to the device.
-*/
-
-// he noddynodded off into sleep while his big brother named character buffer was boolean him and then their dad, mainBuffer, sent for their butler Count who's Occopuation was to buffer.
